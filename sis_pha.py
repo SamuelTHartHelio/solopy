@@ -27,6 +27,21 @@ from solopy import solopy_utils as su
 
 DATA_DIR = '/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/'
 
+
+def tof_consistency_mask(df, scope, tof):
+    """Return a row mask requiring selected TOF masses to agree within 10%."""
+    tof = np.atleast_1d(tof)
+    if tof.size == 1:
+        return np.ones(len(df), dtype=bool)
+
+    columns = [f'{scope} mass tof{t} (amu)' for t in tof]
+    masses = df[columns].to_numpy()
+    valid = np.all(np.isfinite(masses) & (masses > 0), axis=1)
+    valid_masses = masses[valid]
+    valid[valid] = valid_masses.max(axis=1) / valid_masses.min(axis=1) <= 1.10
+    return valid
+
+
 class SIS_PHA():
     
     def __init__(self, start, stop, data_dir=None, output_dir=None, spectra_file=None):
@@ -118,23 +133,12 @@ class SIS_PHA():
 
     #-------Load Mass and Inverse Ion Speed Spectrogram--------#
     def load_hehist(self, scope='A', tof=2, mbins=160, mrange=[2, 6], erange=[0.4, 10]):
-        tof = np.atleast_1d(tof) 
+        tof = np.atleast_1d(tof)
         df = self.dat[scope]
         epn = df[scope + ' einc tof%d (MeV/nuc)' % tof[-1]]
-    
-        e_idx = np.where((epn > erange[0]) & (epn < erange[1]))[0]
-        masses = []
-        for t in tof:
-            mass = df[scope + ' mass tof%d (amu)' % t]
-            masses.append(mass.iloc[e_idx].values)
-        masses = np.array(masses)
-    
-        mass_min = np.nanmin(masses, axis=0)
-        mass_max = np.nanmax(masses, axis=0)
-    
-        agree = (mass_max / mass_min) <= 1.10
-        valid = np.all(np.isfinite(masses), axis=0)
-        e_mass = masses[-1, agree & valid]
+        mass = df[scope + ' mass tof%d (amu)' % tof[-1]]
+        agree = tof_consistency_mask(df, scope, tof)
+        e_mass = mass[(epn > erange[0]) & (epn < erange[1]) & agree]
         if mrange[1] < 10:
             mass_bins = np.linspace(mrange[0], mrange[1], mbins)
         else:
@@ -143,38 +147,42 @@ class SIS_PHA():
         return mass_spec, mass_bins
         
     def load_mass_spec(self, scope='A',tof=2,freq='10min',mbins=160,erange=[0.4,10]):
+        tof = np.atleast_1d(tof)
         df = self.dat[scope]
         date = df['date']
-        mass = df[scope+' mass tof%d (amu)'%tof]
-        epn = df[scope+' einc tof%d (MeV/nuc)'%tof]
+        mass = df[scope+' mass tof%d (amu)'%tof[-1]]
+        epn = df[scope+' einc tof%d (MeV/nuc)'%tof[-1]]
         
         dt_bins = pd.date_range(date.iloc[0],date.iloc[-1],freq=freq)
         mass_bins = np.logspace(0.3,1.9,mbins)
         
-        e_idx = np.where((epn > erange[0]) & (epn < erange[1]))[0]
+        agree = tof_consistency_mask(df, scope, tof)
+        e_idx = np.where((epn > erange[0]) & (epn < erange[1]) & agree)[0]
         e_dt, e_mass = date.iloc[e_idx], mass.iloc[e_idx]
         mass_spec = np.histogram2d(e_dt,e_mass,bins=[dt_bins,mass_bins])[0].T
         return mass_spec, dt_bins, mass_bins
     
     def load_oos_spec(self,scope='A',tof=2,freq='10min',ebins=160,mrange=[10,80],exclude_he4=False, exclude_o=False):
+        tof = np.atleast_1d(tof)
         df = self.dat[scope]
         date = df['date']
-        mass = df[scope+' mass tof%d (amu)'%tof]
-        epn = df[scope+' einc tof%d (MeV/nuc)'%tof]
+        mass = df[scope+' mass tof%d (amu)'%tof[-1]]
+        epn = df[scope+' einc tof%d (MeV/nuc)'%tof[-1]]
         
         dt_bins = pd.date_range(date.iloc[0],date.iloc[-1],freq=freq)
         oos_bins = np.linspace(0,20,ebins)
         
         mmin, mmax = mrange
-        mass_idx = np.where((mass > mmin) & (mass < mmax))[0]
+        agree = tof_consistency_mask(df, scope, tof)
+        mass_idx = np.where((mass > mmin) & (mass < mmax) & agree)[0]
         # Exclude 4He
         if exclude_he4:
             if mmin < 5 and mmax > 3.5:
-                mass_idx = mass_idx[(mass[mass_idx] < 3.5) | (mass[mass_idx] > 5)]
+                mass_idx = mass_idx[(mass.iloc[mass_idx] < 3.5) | (mass.iloc[mass_idx] > 5)]
         # Exclude O
         if exclude_o:
             if mmin < 19 and mmax > 15:
-                mass_idx = mass_idx[(mass[mass_idx] < 15) | (mass[mass_idx] > 19)]
+                mass_idx = mass_idx[(mass.iloc[mass_idx] < 15) | (mass.iloc[mass_idx] > 19)]
                 
         m_dt, m_epn = date.iloc[mass_idx], epn.iloc[mass_idx]
         oos = 1./(3.0e8*np.sqrt(2.*m_epn/940.)) * (1.495e11/3600.)
