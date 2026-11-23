@@ -21,8 +21,6 @@ plt.rcParams['ps.fonttype'] = 42
 
 #----------Local Imports---------#
 if os.path.dirname(os.getcwd()) not in sys.path: sys.path.insert(0,os.path.dirname(os.getcwd())) 
-from solopy import read_solo
-from solopy import solo_spectra
 from solopy import solopy_utils as su
 
 DATA_DIR = '/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/'
@@ -46,7 +44,7 @@ class SIS_PHA():
     
     def __init__(self, start, stop, data_dir=None, output_dir=None, spectra_file=None):
         self.start, self.stop = start, stop
-        self.input_dir = DATA_DIR
+        self.input_dir = DATA_DIR if data_dir is None else data_dir
         self.output_dir = output_dir
         self.files = self._find_pha(self.start, self.stop)
         self.dat = self.load_pha(self.start, self.stop, self.files)
@@ -54,8 +52,8 @@ class SIS_PHA():
             self.spectra = self.load_pha_spectra(spectra_file)
         
     def _find_pha(self, start, stop):
-        files = np.sort(glob.glob(self.input_dir+'*'))
-        dates = pd.date_range(start, stop, freq='1h')
+        files = np.sort(glob.glob(os.path.join(self.input_dir, '*')))
+        dates = pd.date_range(pd.Timestamp(start).normalize(), pd.Timestamp(stop).normalize())
         date_strings = ['_%d_%02d_%02d'%(d.year, d.month, d.day) for d in dates]
         matched = [f for f in files if any(ds in f for ds in date_strings)]
         A_to_use = [f for f in matched if '_A_' in f]

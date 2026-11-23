@@ -31,15 +31,19 @@ L2_path = '/Users/shart/Nextcloud/Shared/NC_Hart/solo/Data/'
     
 
 #-------MAG--------#
-def find_mag(start, stop, resolution):
-    all_files = np.sort(glob.glob(L2_path+'mag_%s/*'%resolution))
-    dates = pd.date_range(start, stop)
+def find_mag(start, stop, resolution, *, data_dir=None):
+    root = L2_path if data_dir is None else data_dir
+    all_files = np.sort(glob.glob(os.path.join(root, f'mag_{resolution}', '*')))
+    dates = pd.date_range(pd.Timestamp(start).normalize(), pd.Timestamp(stop).normalize())
     suffixes = ['_%d%02d%02d_'%(d.year, d.month, d.day) for d in dates]
     to_use = [f for f in all_files if any(s in f for s in suffixes)]
     return to_use
 
-def load_mag(start,stop,resolution):
-    files = find_mag(start,stop,resolution)
+def load_mag(start, stop, resolution, *, data_dir=None):
+    files = find_mag(start, stop, resolution, data_dir=data_dir)
+    if not files:
+        root = L2_path if data_dir is None else data_dir
+        raise FileNotFoundError(f"No MAG files for the selected dates in {os.path.join(root, f'mag_{resolution}')}")
     cdfs = [pycdf.CDF(f) for f in files]
     mag = pycdf.concatCDF(cdfs)
     mag['EPOCH'] = pd.to_datetime(mag['EPOCH'])
