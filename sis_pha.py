@@ -21,23 +21,10 @@ plt.rcParams['ps.fonttype'] = 42
 
 #----------Local Imports---------#
 if os.path.dirname(os.getcwd()) not in sys.path: sys.path.insert(0,os.path.dirname(os.getcwd())) 
+from solopy import read_solo
 from solopy import solopy_utils as su
 
 DATA_DIR = '/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/'
-
-
-def tof_consistency_mask(df, scope, tof):
-    """Return a row mask requiring selected TOF masses to agree within 10%."""
-    tof = np.atleast_1d(tof)
-    if tof.size == 1:
-        return np.ones(len(df), dtype=bool)
-
-    columns = [f'{scope} mass tof{t} (amu)' for t in tof]
-    masses = df[columns].to_numpy()
-    valid = np.all(np.isfinite(masses) & (masses > 0), axis=1)
-    valid_masses = masses[valid]
-    valid[valid] = valid_masses.max(axis=1) / valid_masses.min(axis=1) <= 1.10
-    return valid
 
 
 class SIS_PHA():
@@ -107,6 +94,20 @@ class SIS_PHA():
         trimmed_pha = self._trim_pha(start, stop, pha)
         return trimmed_pha 
     
+    @staticmethod
+    def _tof_consistency_mask(df, scope, tof):
+        """Return a row mask requiring selected TOF masses to agree within 10%."""
+        tof = np.atleast_1d(tof)
+        if tof.size == 1:
+            return np.ones(len(df), dtype=bool)
+
+        columns = [f'{scope} mass tof{t} (amu)' for t in tof]
+        masses = df[columns].to_numpy()
+        valid = np.all(np.isfinite(masses) & (masses > 0), axis=1)
+        valid_masses = masses[valid]
+        valid[valid] = valid_masses.max(axis=1) / valid_masses.min(axis=1) <= 1.09
+        return valid
+    
     def load_pha_spectra(self,file):
         # The first 201 lines are the SIS header.
         dat = pd.read_csv(file, skiprows=201)
@@ -135,7 +136,7 @@ class SIS_PHA():
         df = self.dat[scope]
         epn = df[scope + ' einc tof%d (MeV/nuc)' % tof[-1]]
         mass = df[scope + ' mass tof%d (amu)' % tof[-1]]
-        agree = tof_consistency_mask(df, scope, tof)
+        agree = self._tof_consistency_mask(df, scope, tof)
         e_mass = mass[(epn > erange[0]) & (epn < erange[1]) & agree]
         if mrange[1] < 10:
             mass_bins = np.linspace(mrange[0], mrange[1], mbins)
@@ -154,7 +155,7 @@ class SIS_PHA():
         dt_bins = pd.date_range(date.iloc[0],date.iloc[-1],freq=freq)
         mass_bins = np.logspace(0.3,1.9,mbins)
         
-        agree = tof_consistency_mask(df, scope, tof)
+        agree = self._tof_consistency_mask(df, scope, tof)
         e_idx = np.where((epn > erange[0]) & (epn < erange[1]) & agree)[0]
         e_dt, e_mass = date.iloc[e_idx], mass.iloc[e_idx]
         mass_spec = np.histogram2d(e_dt,e_mass,bins=[dt_bins,mass_bins])[0].T
@@ -171,7 +172,7 @@ class SIS_PHA():
         oos_bins = np.linspace(0,20,ebins)
         
         mmin, mmax = mrange
-        agree = tof_consistency_mask(df, scope, tof)
+        agree = self._tof_consistency_mask(df, scope, tof)
         mass_idx = np.where((mass > mmin) & (mass < mmax) & agree)[0]
         # Exclude 4He
         if exclude_he4:
@@ -307,7 +308,7 @@ class SIS_PHA():
         if standalone:
             fig.tight_layout()
             fig.subplots_adjust(hspace=0)
-            fig.savefig(self.output_dir + 'sunward_streaming_AB.png', dpi=600)
+            fig.savefig(self.output_dir + 'sunward_AB.png', dpi=600)
         return fig, axs
     
     def fit_pha_spectra(self, energy, flux, flux_err, species=None, fit=None):
@@ -396,9 +397,15 @@ def rollover(E, A, beta, E0):
 
 if __name__ == '__main__':
     output_dir = '/Users/shart/Library/CloudStorage/OneDrive-SWRI/Documents/Presentations/2026/AGU_SolO_IMAP/SolO/'
-    start, stop = pd.to_datetime('2024-04-08T14:00:00'), pd.to_datetime('2024-04-10T08:00:00')
+    start, stop = pd.to_datetime('2024-04-01T14:00:00'), pd.to_datetime('2024-04-03T21:00:00')
     sis_pha = SIS_PHA(start, stop, output_dir=output_dir)
-    sis_pha.plot_oos_AB(tof=3,freq='8min',ebins=200,mrange=[10,80],exclude_he4=True)
+    fig, axs = sis_pha.plot_oos_AB(tof=[3,1],freq='8min',ebins=200,mrange=[2,80],exclude_he4=True)
+    # pairs = [(pd.Timestamp("2024-04-01 20:11"), 0.92),(pd.Timestamp("2024-04-03 01:47"), 0.92),]
+    # for time, dist in pairs:
+    #     for ax in axs:
+    #         su.dispersion_plot(ax, dist=dist, time=time, space="inverse_v", erange=[0.02, 1e4], color="black", lw=1.5)
+    fig.savefig(sis_pha.output_dir + 'sunward_AB.png', dpi=600)
+
     #sis_pha.plot_oos_AB(tof=3,freq='12min',ebins=160,mrange=[2,3.5])
 
     

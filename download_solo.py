@@ -12,16 +12,14 @@ from bs4 import BeautifulSoup
 
 ARCHIVE = "https://cdaweb.gsfc.nasa.gov/pub/data/solar-orbiter/"
 dpath = "Data"
-PRODUCTS = {
-    "mag_4sec": ("mag/science/l2/rtn-normal",),
-    "mag_1min": ("mag/science/l2/rtn-normal-1-minute",),
-    "sis_30min": ("epd/science/l2/sis/a-rates-slow", "epd/science/l2/sis/b-rates-slow"),
-    "sis_30sec": ("epd/science/l2/sis/a-rates-medium", "epd/science/l2/sis/b-rates-medium"),
-    "sis_3sec": ("epd/science/l2/sis/a-rates-fast", "epd/science/l2/sis/b-rates-fast"),
-    "pas_moments": ("swa/science/l2/pas-grnd-mom",),
-    "eas": ("swa/science/l3/eas-nmpad-psd",),
-    "ept_1min": ("epd/science/l3/ept-1min",),
-}
+PRODUCTS = {"mag_4sec": ("mag/science/l2/rtn-normal",),
+            "mag_1min": ("mag/science/l2/rtn-normal-1-minute",),
+            "sis_30min": ("epd/science/l2/sis/a-rates-slow", "epd/science/l2/sis/b-rates-slow"),
+            "sis_30sec": ("epd/science/l2/sis/a-rates-medium", "epd/science/l2/sis/b-rates-medium"),
+            "sis_3sec": ("epd/science/l2/sis/a-rates-fast", "epd/science/l2/sis/b-rates-fast"),
+            "pas_moments": ("swa/science/l2/pas-grnd-mom",),
+            "eas": ("swa/science/l3/eas-nmpad-psd",),
+            "ept_1min": ("epd/science/l3/ept-1min",)}
 CDF_DATE = re.compile(r"_(\d{8})(?:T\d{6})?(?:-(\d{8})(?:T\d{6})?)?_V\d+\.cdf$", re.IGNORECASE)
 
 
