@@ -188,9 +188,11 @@ class SIS_PHA():
         oos_spec = np.histogram2d(m_dt,oos,bins=[dt_bins,oos_bins])[0].T
         return oos_spec, dt_bins, oos_bins
             
-    def plot_hehist(self,ax,scope='A',tof=2,mbins=160,mrange=[2,6],erange=[0.4,10]):
+    def plot_hehist(self,ax=None,scope='A',tof=2,mbins=160,mrange=[2,6],erange=[0.4,10]):
         mass_spec, mass_bins = self.load_hehist(scope=scope,tof=tof,mbins=mbins,mrange=mrange,erange=erange)
         
+        if ax is None:
+            _, ax = plt.subplots()
         ax.bar(mass_bins[:-1],mass_spec,width=np.diff(mass_bins),color='black')
         ax.set_ylabel('Counts-per-Bin')
         ax.set_xlabel('Mass (AMU) [%.2f - %.2f MeV/n]'%(erange[0],erange[1]),fontsize=10)
@@ -198,9 +200,13 @@ class SIS_PHA():
         ax.set_xlim(mrange)
         return mass_spec, mass_bins
 
-    def plot_mass_spec(self,ax,scope='A',tof=2,freq='10min',mbins=160,erange=[0.4,10],he=0):
+    def plot_mass_spec(self,ax=None,scope='A',tof=2,freq='10min',mbins=160,erange=[0.4,10],he=0):
         mass_spec, mass_dt, mass = self.load_mass_spec(scope=scope,tof=tof,freq=freq,mbins=mbins,erange=erange)
         
+        standalone = ax is None
+        if standalone:
+            _, ax = plt.subplots()
+
         jetty = plt.cm.jet
         jetty.set_under((1,1,1))
         vmin, vmax = 1, 100#np.max([np.max(mass_spec),20])
@@ -208,7 +214,6 @@ class SIS_PHA():
                             norm=mcolors.LogNorm(vmin=vmin,vmax=vmax))
         ax.set_ylabel('Mass (AMU)\n[%.2f - %.2f MeV/n]'%(erange[0],erange[1]),fontsize=8,labelpad=16)
         ax.set_yscale('log')
-        ax.set_xlim(mass_dt[0]-pd.to_timedelta(10,'min'),mass_dt[-1]+pd.to_timedelta(10,'min'))
         if he == 1:
             ax.set_ylim(2,6)
             species = ['$^3$He','$^4$He']
@@ -223,16 +228,22 @@ class SIS_PHA():
                 ax.annotate(s,xy=(1.005,loc[i]),xycoords='axes fraction',ha='left',fontsize=9)
         ax.annotate('SIS-%s'%scope,xy=(0.005,0.97),xycoords='axes fraction',
                        va='top',ha='left',fontsize=16)
-        cbar = plt.colorbar(m2d,cax=ax.inset_axes([1.01,0.05,0.015,0.9]))
+        cbar = ax.figure.colorbar(m2d,cax=ax.inset_axes([1.01,0.05,0.015,0.9]))
         cbar.set_label('Counts',fontsize=8)
         cbar.ax.tick_params(labelsize=8)
+        if standalone:
+            su.curate_axes([ax], start=self.start, stop=self.stop, year=self.start.year)
+            return ax.figure, ax
 
-
-    def plot_oos_spec(self,ax,scope='A',tof=2,freq='10min',ebins=160,mrange=[10,80],exclude_he4=False, exclude_o=False):
+    def plot_oos_spec(self,ax=None,scope='A',tof=2,freq='10min',ebins=160,mrange=[10,80],exclude_he4=False, exclude_o=False):
         oos_spec, oos_dt, oos = self.load_oos_spec(scope=scope,tof=tof,freq=freq,ebins=ebins,
                                                    mrange=mrange,exclude_he4=exclude_he4,
                                                    exclude_o=exclude_o)
         
+        standalone = ax is None
+        if standalone:
+            _, ax = plt.subplots()
+
         jetty = plt.cm.jet
         jetty.set_under((1,1,1))
         vmin, vmax = 1, 100#np.max([np.max(oos_spec),20])
@@ -252,8 +263,7 @@ class SIS_PHA():
             ax.set_yticks([4,8,12,16],['4','8','12','16'])  
         ax.annotate('SIS-%s'%scope,xy=(0.005,0.02),xycoords='axes fraction',
                     va='bottom',ha='left',fontsize=16)
-        ax.set_xlim(self.start, self.stop)
-        cbar = plt.colorbar(e2d,cax=ax.inset_axes([1.01,0.05,0.015,0.9]))
+        cbar = ax.figure.colorbar(e2d,cax=ax.inset_axes([1.01,0.05,0.015,0.9]))
         cbar.set_label('Counts',fontsize=8)
         cbar.ax.tick_params(labelsize=8)
         
@@ -262,53 +272,62 @@ class SIS_PHA():
         secax.set_ticks([0.023,0.05,0.1,0.5,1,10],[' ',' ',' ',' ',' ',' '],fontsize=6,color='red')
         secax.tick_params(axis='y', colors='red', labelsize=6)
         #secax.set_ylabel('Energy [MeV/nuc.]',fontsize=6,color='red')
-    
-    def plot_pha(self,scope='A',tof=2,freq='10min',mbins=160,ebins=160,mrange=[10,80],erange=[0.4,10],he=0):
-        dates = self.dat[scope]['date']
-        start, stop = dates.iloc[0], dates.iloc[-1]
-        
-        fig = plt.figure(figsize=(7.5,5-he))
-        if he == 1:
-            gs = fig.add_gridspec(3,1)
-            ax = fig.add_subplot(gs[0,0])
-            ax.set_ylim(0.1,8)
-            ax.set_yticks([2,4,6,8],['2','4','6','8'])
+        if standalone:
+            su.curate_axes([ax], start=self.start, stop=self.stop, year=self.start.year)
+            return ax.figure, ax
+
+    def plot_pha(self,scope='A',tof=2,freq='10min',mbins=160,ebins=160,mrange=[10,80],erange=[0.4,10],he=0,axs=None):
+        """Plot mass and inverse speed on two axes, or create a standalone figure."""
+        standalone = axs is None
+        if standalone:
+            fig = plt.figure(figsize=(7.5, 5-he))
+            gs = fig.add_gridspec(3 if he == 1 else 4, 1)
+            ax = fig.add_subplot(gs[:-2, 0])
+            ax1 = fig.add_subplot(gs[-2:, 0], sharex=ax)
         else:
-            gs = fig.add_gridspec(4,1)
-            ax = fig.add_subplot(gs[0:2,0])
-            ax.set_ylim(0.1,18)
-            ax.set_yticks([4,8,12,16],['4','8','12','16'])    
-        ax1 = fig.add_subplot(gs[-2:,0],sharex=ax)
-    
+            ax, ax1 = self._panel_pair(axs)
+            fig, gs = ax.figure, None
+
         self.plot_mass_spec(ax,scope=scope,tof=tof,freq=freq,mbins=mbins,erange=erange,he=he)
         self.plot_oos_spec(ax1,scope=scope,tof=tof,freq=freq,ebins=ebins,mrange=mrange)
-        
-        axs = [ax,ax1]
-        su.curate_axes(axs,start=start,stop=stop)
-        fig.tight_layout()
-        fig.subplots_adjust(hspace=0)
-        #fig.savefig('/Users/shart/Desktop/for_mihir.png',dpi=600)
+
+        if standalone:
+            dates = self.dat[scope]['date']
+            su.curate_axes([ax, ax1], start=dates.iloc[0], stop=dates.iloc[-1])
+            fig.tight_layout()
+            fig.subplots_adjust(hspace=0)
         return fig, gs, ax
-    
+
+    @staticmethod
+    def _panel_pair(axs):
+        panels = np.asarray(axs, dtype=object).ravel()
+        if (panels.size != 2 or not all(isinstance(ax, plt.Axes) for ax in panels)
+                or panels[0] is panels[1] or panels[0].figure is not panels[1].figure):
+            raise ValueError("axs must contain two distinct axes from the same figure")
+        return tuple(panels)
+
     def plot_oos_AB(self, tof=2, freq='10min', ebins=160, mrange=[10,80], exclude_he4=False, dist=None, time=None, vsw=400, axs=None):
         standalone = axs is None
         if standalone:
             fig, axs = plt.subplots(2, 1, figsize=(7.5, 5), sharex=True, sharey=True)
+            panels = axs
         else:
-            fig = axs[0].figure
+            panels = self._panel_pair(axs)
+            fig = panels[0].figure
     
-        for ax, scope in zip(axs, ['A', 'B']):
+        for ax, scope in zip(panels, ['A', 'B']):
             self.plot_oos_spec(ax, scope=scope, tof=tof, freq=freq, ebins=ebins, mrange=mrange, exclude_he4=exclude_he4)
     
         if time is None: time = self.start
         if dist is not None:
-            for ax in axs:
+            for ax in panels:
                 su.dispersion_plot(ax, dist=dist, time=time, vsw=vsw, erange=[0.02, 1e4], space='inverse_v', color='black', ls='-', lw=1.5)
-        su.curate_axes(axs, start=self.start, stop=self.stop, year=self.start.year)
         if standalone:
+            su.curate_axes(panels, start=self.start, stop=self.stop, year=self.start.year)
             fig.tight_layout()
             fig.subplots_adjust(hspace=0)
-            fig.savefig(self.output_dir + 'sunward_AB.png', dpi=600)
+            if self.output_dir is not None:
+                fig.savefig(os.path.join(self.output_dir, 'sunward_AB.png'), dpi=600)
         return fig, axs
     
     def fit_pha_spectra(self, energy, flux, flux_err, species=None, fit=None):
@@ -344,7 +363,7 @@ class SIS_PHA():
         
         return func, popt, np.sqrt(np.diag(pcov))
     
-    def plot_pha_spectra(self, ax, species='H', erange=None, fit=None, async_seps=False, **kwargs):
+    def plot_pha_spectra(self, ax=None, species='H', erange=None, fit=None, async_seps=False, **kwargs):
         utils = su.species_utils(species)
         energy = self.spectra[species + '_energy']
         flux = self.spectra[species]
@@ -358,6 +377,9 @@ class SIS_PHA():
         if async_seps == True:
             fplot *= 2
             fplot_err *= 2
+        standalone = ax is None
+        if standalone:
+            _, ax = plt.subplots()
         ax.errorbar(eplot, fplot, yerr=fplot_err, mew=0.75, mec='black',
                     color=utils['color'], label=utils['name'], lw=0.75, **kwargs)
         if fit is not None:
@@ -371,7 +393,8 @@ class SIS_PHA():
         ax.set_xlabel('Energy [MeV/nuc.]')
         ax.set_ylabel(r'Fluence [cm$^{-2}$ sr$^{-1}$ (MeV/nuc)$^{-1}$]')
         
-        su.tick_parameters(ax,labelbottom=True)
+        if standalone:
+            su.tick_parameters(ax,labelbottom=True)
         return ax
     
 def power_law(E, A, gamma):

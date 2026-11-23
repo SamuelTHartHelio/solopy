@@ -19,8 +19,6 @@ from . import read_solo
 from . import solopy_utils as su
 from .sis_pha import SIS_PHA
 
-print (Path(__file__).resolve().parent)
-
 
 START = "2024-04-01 00:00"
 STOP = "2024-04-04 00:00"
@@ -42,9 +40,8 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
 
     fig = plt.figure(figsize=(9, 7))
     axs = fig.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": [2, 2, 1.5]})
-    
+
     pha.plot_oos_AB(axs=axs[:2], **oos_options)
-    axs[1].set_xlabel("")
 
     ax = axs[2]
     colors = ['tomato','darkgreen','blue','black']
@@ -54,7 +51,7 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
 
     su.curate_axes(axs, start=start, stop=stop, year=start.year)
     fig.subplots_adjust(left=0.13, right=0.87, bottom=0.12, top=0.97, hspace=0.10)
-    return fig, axes
+    return fig, axs
 
 
 if __name__ == "__main__":
