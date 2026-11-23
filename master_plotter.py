@@ -26,8 +26,8 @@ from .sis_pha import SIS_PHA
 
 EVENT = 0
 EVENTS_FILE = Path(__file__).with_name("events.csv")
-START = "2024-04-01 00:00"
-STOP = "2024-04-04 00:00"
+START = "2023-01-11 12:00"
+STOP = "2023-01-13 18:00"
 PHA_DATA_DIR = Path('/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/')
 MAG_DATA_DIR = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/Data/')
 MAG_RESOLUTION = "1min"
@@ -44,8 +44,8 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
     pha = SIS_PHA(start, stop, data_dir=Path(pha_data_dir).expanduser())
     mag = read_solo.load_mag(start, stop, mag_resolution, data_dir=Path(mag_data_dir).expanduser())
 
-    fig = plt.figure(figsize=(9, 7))
-    axs = fig.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": [2, 2, 1.5]})
+    fig = plt.figure(figsize=(9, 6))
+    axs = fig.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": [2, 2, 1]})
 
     pha.plot_oos_AB(axs=axs[:2], **oos_options)
 
@@ -53,10 +53,11 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
     colors = ['tomato','darkgreen','blue','black']
     for i in range(4):
         ax.plot(mag["EPOCH"], mag['B_RTN'][:,i], color=colors[i], linewidth=0.9)
-    ax.set_ylabel("Magnetic field (nT)")
+    ax.set_ylabel("Magnetic field (nT)",fontsize=8)
 
     su.curate_axes(axs, start=start, stop=stop, year=start.year)
-    fig.subplots_adjust(left=0.13, right=0.87, bottom=0.12, top=0.97, hspace=0.10)
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0)
     return fig, axs
 
 
@@ -81,7 +82,8 @@ def main(event_number):
 
     fig, axes = plot_sis_mag(
         start, stop, pha_data_dir=PHA_DATA_DIR, mag_data_dir=MAG_DATA_DIR,
-        mag_resolution=MAG_RESOLUTION, tof=[2, 3],
+        mag_resolution=MAG_RESOLUTION, tof=[2, 3], freq="8min",
+        mrange=[2, 80], exclude_he4=True,
     )
     for marker, color, style in markers:
         for ax in axes:
