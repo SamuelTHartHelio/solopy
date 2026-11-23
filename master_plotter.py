@@ -19,11 +19,13 @@ from . import read_solo
 from . import solopy_utils as su
 from .sis_pha import SIS_PHA
 
+print (Path(__file__).resolve().parent)
+
 
 START = "2024-04-01 00:00"
-STOP = "2024-04-02 00:00"
-PHA_DATA_DIR = Path(__file__).resolve().parent / "Data" / "PHA"
-MAG_DATA_DIR = Path(__file__).resolve().parent / "Data"
+STOP = "2024-04-04 00:00"
+PHA_DATA_DIR = Path('/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/')
+MAG_DATA_DIR = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/Data/')
 MAG_RESOLUTION = "1min"
 OUTPUT_FILE = None  # Set to a path such as "sis_mag.png" to save the figure.
 
@@ -36,25 +38,21 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
         raise ValueError("start must be earlier than stop")
 
     pha = SIS_PHA(start, stop, data_dir=Path(pha_data_dir).expanduser())
-    mag = read_solo.load_mag(
-        start, stop, mag_resolution, data_dir=Path(mag_data_dir).expanduser()
-    )
+    mag = read_solo.load_mag(start, stop, mag_resolution, data_dir=Path(mag_data_dir).expanduser())
 
-    fig, axes = plt.subplots(
-        3, 1, sharex=True, figsize=(9, 7), gridspec_kw={"height_ratios": [2, 2, 1.5]}
-    )
-    pha.plot_oos_AB(axs=axes[:2], **oos_options)
-    axes[1].set_xlabel("")
+    fig = plt.figure(figsize=(9, 7))
+    axs = fig.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": [2, 2, 1.5]})
+    
+    pha.plot_oos_AB(axs=axs[:2], **oos_options)
+    axs[1].set_xlabel("")
 
-    ax = axes[2]
-    for field, label, color in zip(
-        mag["B_RTN"].T, mag["LBL1_B_RTN"], ("tab:red", "tab:green", "tab:blue", "black")
-    ):
-        ax.plot(mag["EPOCH"], field, label=label, color=color, linewidth=0.9)
+    ax = axs[2]
+    colors = ['tomato','darkgreen','blue','black']
+    for i in range(4):
+        ax.plot(mag["EPOCH"], mag['B_RTN'][:,i], color=colors[i], linewidth=0.9)
     ax.set_ylabel("Magnetic field (nT)")
-    ax.legend(loc="upper right", ncol=4)
 
-    su.curate_axes(axes, start=start, stop=stop, year=start.year)
+    su.curate_axes(axs, start=start, stop=stop, year=start.year)
     fig.subplots_adjust(left=0.13, right=0.87, bottom=0.12, top=0.97, hspace=0.10)
     return fig, axes
 
