@@ -2,6 +2,10 @@
 
 Edit the settings below and run this file in Spyder or with
 `python master_plotter.py` from the solopy checkout.
+
+Set EVENT to 0 to use START and STOP. Otherwise, select an event from
+events.csv with columns Event, Start, Stop, Dropout, Dropin. Use full UTC
+timestamps and separate multiple times in a marker cell with semicolons.
 """
 
 import sys
@@ -20,6 +24,8 @@ from . import solopy_utils as su
 from .sis_pha import SIS_PHA
 
 
+EVENT = 0
+EVENTS_FILE = Path(__file__).with_name("events.csv")
 START = "2024-04-01 00:00"
 STOP = "2024-04-04 00:00"
 PHA_DATA_DIR = Path('/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/')
@@ -54,11 +60,37 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
     return fig, axs
 
 
-if __name__ == "__main__":
+def main(event_number):
+    start, stop = START, STOP
+    markers = []
+    if event_number != 0:
+        events = pd.read_csv(EVENTS_FILE, dtype=str, keep_default_na=False)
+        matches = events.loc[events["Event"].str.strip().eq(str(event_number))]
+        if len(matches) != 1:
+            raise ValueError(f"Expected exactly one row for event {event_number} in {EVENTS_FILE}")
+
+        event = matches.iloc[0]
+        start, stop = event["Start"], event["Stop"]
+        for column, color, style in (
+            ("Dropout", "tab:red", "--"),
+            ("Dropin", "tab:blue", ":"),
+        ):
+            for value in event[column].split(";"):
+                if value.strip():
+                    markers.append((pd.Timestamp(value.strip()), color, style))
+
     fig, axes = plot_sis_mag(
-        START, STOP, pha_data_dir=PHA_DATA_DIR, mag_data_dir=MAG_DATA_DIR,
+        start, stop, pha_data_dir=PHA_DATA_DIR, mag_data_dir=MAG_DATA_DIR,
         mag_resolution=MAG_RESOLUTION, tof=[2, 3],
     )
+    for marker, color, style in markers:
+        for ax in axes:
+            ax.axvline(marker, color=color, linestyle=style, linewidth=1)
+
     if OUTPUT_FILE is not None:
         fig.savefig(OUTPUT_FILE, dpi=300)
     plt.show()
+
+
+if __name__ == "__main__":
+    main(EVENT)
