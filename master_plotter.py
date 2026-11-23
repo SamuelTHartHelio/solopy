@@ -1,13 +1,19 @@
 """Plot SIS inverse speed and MAG on a shared UTC time axis.
 
-Edit the settings below and run `python -m solopy.master_plotter` from the
-parent of the solopy checkout.
+Edit the settings below and run this file in Spyder or with
+`python master_plotter.py` from the solopy checkout.
 """
 
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
+if not __package__:
+    # Direct execution (including Spyder Run File) needs the package parent.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "solopy"
 
 from . import read_solo
 from . import solopy_utils as su
