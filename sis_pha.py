@@ -176,8 +176,8 @@ class SIS_PHA():
         mass_idx = np.where((mass > mmin) & (mass < mmax) & agree)[0]
         # Exclude 4He
         if exclude_he4:
-            if mmin < 5 and mmax > 3.5:
-                mass_idx = mass_idx[(mass.iloc[mass_idx] < 3.5) | (mass.iloc[mass_idx] > 5)]
+            if mmin < 5 and mmax > 3.3:
+                mass_idx = mass_idx[(mass.iloc[mass_idx] < 3.3) | (mass.iloc[mass_idx] > 5)]
         # Exclude O
         if exclude_o:
             if mmin < 19 and mmax > 15:
@@ -263,15 +263,15 @@ class SIS_PHA():
             ax.set_yticks([4,8,12,16],['4','8','12','16'])  
         ax.annotate('SIS-%s'%scope,xy=(0.005,0.02),xycoords='axes fraction',
                     va='bottom',ha='left',fontsize=16)
-        cbar = ax.figure.colorbar(e2d,cax=ax.inset_axes([1.01,0.05,0.015,0.9]))
+        cbar = ax.figure.colorbar(e2d,cax=ax.inset_axes([1.08,0.05,0.015,0.9]))
         cbar.set_label('Counts',fontsize=8)
         cbar.ax.tick_params(labelsize=8)
         
         secax = ax.secondary_yaxis("right", functions=(su.oos_to_epn, su.epn_to_oos))
         secax.set_ylim(0.02,10)
-        secax.set_ticks([0.023,0.05,0.1,0.5,1,10],[' ',' ',' ',' ',' ',' '],fontsize=6,color='red')
+        secax.set_ticks([0.023,0.05,0.1,0.5,1,10],['','0.05','0.1','0.5','1','10'],fontsize=6,color='red')
         secax.tick_params(axis='y', colors='red', labelsize=6)
-        #secax.set_ylabel('Energy [MeV/nuc.]',fontsize=6,color='red')
+        secax.set_ylabel('Energy [MeV/nuc.]',fontsize=6,color='red')
         if standalone:
             su.curate_axes([ax], start=self.start, stop=self.stop, year=self.start.year)
             return ax.figure, ax
