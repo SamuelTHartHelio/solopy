@@ -276,32 +276,21 @@ class SIS_PHA():
             su.curate_axes([ax], start=self.start, stop=self.stop, year=self.start.year)
             return ax.figure, ax
 
-    def plot_pha_species(self, ax=None, species=("He3", "He4", "O", "Fe"), *,
-                         scope="A", tof=3, mass_ranges=None):
-        """Scatter individual events in time and inverse speed by mass window.
-
-        Mass windows include the lower bound and exclude the upper bound.
-        Supply a mapping such as {"O": (15, 19)} to override or add windows.
-        With multiple TOFs, the last one supplies mass and energy after the
-        usual consistency check. Returns the figure and plotting axis.
-        """
-        windows = {
-            "He3": (2.6, 3.4),
-            "He4": (3.5, 5),
-            "O": (15, 18),
-            "Fe": (40, 80),
-        }
+    def plot_pha_scatter(self, ax=None, species=("He3", "He4", "O", "Fe"), *, scope="A", tof=3, mass_ranges=None):
+        "Scatterplot of individual events in time and inverse speed by mass window."
+        windows = {"He3": (2.6, 3.4),
+                   "He4": (3.5, 5),
+                   "O":  (15.2, 18),
+                   "Fe": (45, 80)}
         if mass_ranges is not None:
             windows.update(mass_ranges)
-        species = [species] if isinstance(species, str) else list(species)
-        if not species:
+        species = np.atleast_1d(species)
+        if species.size == 0:
             raise ValueError("Select at least one species")
         for name in species:
             if name not in windows:
                 raise ValueError(f"No mass window for {name!r}. Supply it in mass_ranges.")
             lower, upper = windows[name]
-            if not lower < upper:
-                raise ValueError(f"Mass window for {name!r} must have increasing bounds")
 
         tof = np.atleast_1d(tof)
         df = self.dat[scope]
@@ -318,11 +307,7 @@ class SIS_PHA():
             lower, upper = windows[name]
             selected = valid & (mass >= lower) & (mass < upper)
             style = su.species_utils(name)
-            ax.scatter(
-                time[selected], su.epn_to_oos(energy[selected]),
-                marker=".", s=0.5, color=style.get("color"),
-                label=style.get("name", name), rasterized=True,
-            )
+            ax.scatter(time[selected], su.epn_to_oos(energy[selected]), marker=".", s=0.5, color=style.get("color"),label=style['name'])
         ax.set_ylim(0.1, 16)
         ax.set_ylabel(f"SIS-{scope} 1/v (hr/AU)")
         ax.legend(loc="lower right", markerscale=5)
@@ -474,14 +459,20 @@ def rollover(E, A, beta, E0):
 
 if __name__ == '__main__':
     output_dir = '/Users/shart/Library/CloudStorage/OneDrive-SWRI/Documents/Presentations/2026/AGU_SolO_IMAP/SolO/'
-    start, stop = pd.to_datetime('2024-04-01T14:00:00'), pd.to_datetime('2024-04-03T21:00:00')
+    start, stop = pd.to_datetime('2023-10-06T14:00:00'), pd.to_datetime('2023-10-08T06:00:00')
     sis_pha = SIS_PHA(start, stop, output_dir=output_dir)
     fig, axs = sis_pha.plot_oos_AB(tof=[3,1],freq='8min',ebins=200,mrange=[2,80],exclude_he4=True)
-    # pairs = [(pd.Timestamp("2024-04-01 20:11"), 0.92),(pd.Timestamp("2024-04-03 01:47"), 0.92),]
-    # for time, dist in pairs:
-    #     for ax in axs:
-    #         su.dispersion_plot(ax, dist=dist, time=time, space="inverse_v", erange=[0.02, 1e4], color="black", lw=1.5)
-    fig.savefig(sis_pha.output_dir + 'sunward_AB.png', dpi=600)
+    pairs = [(pd.Timestamp("2023-10-07T01:35:00"), 0.47),(pd.Timestamp("2023-10-07T05:10:00"), 0.37)]
+    for time, dist in pairs:
+        for ax in axs:
+            su.dispersion_plot(ax, dist=dist, time=time, space="inverse_v", erange=[0.02, 1e4], color="black", lw=0.75)
+    
+
+    
+    
+    fig, axs = sis_pha.plot_pha_scatter(scope='C',tof=1,species=['He3','O','Fe'])
+
+    # fig.savefig(sis_pha.output_dir + 'sunward_AB.png', dpi=600)
 
     #sis_pha.plot_oos_AB(tof=3,freq='12min',ebins=160,mrange=[2,3.5])
 
