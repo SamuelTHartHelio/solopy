@@ -25,9 +25,10 @@ from .sis_pha import SIS_PHA
 
 
 EVENT = 0
-EVENTS_FILE = Path(__file__).with_name("events.csv")
-START = "2023-01-11 12:00"
-STOP = "2023-01-13 18:00"
+EVENTS_FILE = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/events.csv')
+
+START = "2023-10-04 00:00"
+STOP = "2023-10-08 16:00"
 PHA_DATA_DIR = Path('/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/')
 MAG_DATA_DIR = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/Data/')
 MAG_RESOLUTION = "1min"
@@ -72,18 +73,15 @@ def main(event_number):
 
         event = matches.iloc[0]
         start, stop = event["Start"], event["Stop"]
-        for column, color, style in (
-            ("Dropout", "tab:red", "--"),
-            ("Dropin", "tab:blue", ":"),
-        ):
+        for column, color, style in (("Dropout", "dimgray", "-"),("Dropin", "gray", "--")):
             for value in event[column].split(";"):
                 if value.strip():
                     markers.append((pd.Timestamp(value.strip()), color, style))
 
     fig, axes = plot_sis_mag(
         start, stop, pha_data_dir=PHA_DATA_DIR, mag_data_dir=MAG_DATA_DIR,
-        mag_resolution=MAG_RESOLUTION, tof=[2, 3], freq="8min",
-        mrange=[2, 80], exclude_he4=True,
+        mag_resolution=MAG_RESOLUTION, tof=3, freq="8min",
+        mrange=[2,80], exclude_he4=True,
     )
     for marker, color, style in markers:
         for ax in axes:
