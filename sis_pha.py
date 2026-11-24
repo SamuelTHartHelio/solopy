@@ -276,6 +276,60 @@ class SIS_PHA():
             su.curate_axes([ax], start=self.start, stop=self.stop, year=self.start.year)
             return ax.figure, ax
 
+    def plot_pha_species(self, ax=None, species=("He3", "He4", "O", "Fe"), *,
+                         scope="A", tof=3, mass_ranges=None):
+        """Scatter individual events in time and inverse speed by mass window.
+
+        Mass windows include the lower bound and exclude the upper bound.
+        Supply a mapping such as {"O": (15, 19)} to override or add windows.
+        With multiple TOFs, the last one supplies mass and energy after the
+        usual consistency check. Returns the figure and plotting axis.
+        """
+        windows = {
+            "He3": (2.6, 3.4),
+            "He4": (3.5, 5),
+            "O": (15, 18),
+            "Fe": (40, 80),
+        }
+        if mass_ranges is not None:
+            windows.update(mass_ranges)
+        species = [species] if isinstance(species, str) else list(species)
+        if not species:
+            raise ValueError("Select at least one species")
+        for name in species:
+            if name not in windows:
+                raise ValueError(f"No mass window for {name!r}. Supply it in mass_ranges.")
+            lower, upper = windows[name]
+            if not lower < upper:
+                raise ValueError(f"Mass window for {name!r} must have increasing bounds")
+
+        tof = np.atleast_1d(tof)
+        df = self.dat[scope]
+        time = df["date"]
+        mass = df[f"{scope} mass tof{tof[-1]} (amu)"]
+        energy = df[f"{scope} einc tof{tof[-1]} (MeV/nuc)"]
+        valid = time.notna() & np.isfinite(energy) & (energy > 0)
+        valid &= self._tof_consistency_mask(df, scope, tof)
+
+        standalone = ax is None
+        if standalone:
+            _, ax = plt.subplots(figsize=(6, 4))
+        for name in species:
+            lower, upper = windows[name]
+            selected = valid & (mass >= lower) & (mass < upper)
+            style = su.species_utils(name)
+            ax.scatter(
+                time[selected], su.epn_to_oos(energy[selected]),
+                marker=".", s=0.5, color=style.get("color"),
+                label=style.get("name", name), rasterized=True,
+            )
+        ax.set_ylim(0.1, 16)
+        ax.set_ylabel(f"SIS-{scope} 1/v (hr/AU)")
+        ax.legend(loc="lower right", markerscale=5)
+        if standalone:
+            su.curate_axes([ax], start=self.start, stop=self.stop)
+        return ax.figure, ax
+
     def plot_pha(self,scope='A',tof=2,freq='10min',mbins=160,ebins=160,mrange=[10,80],erange=[0.4,10],he=0,axs=None):
         """Plot mass and inverse speed on two axes, or create a standalone figure."""
         standalone = axs is None
