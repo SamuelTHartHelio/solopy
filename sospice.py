@@ -61,21 +61,26 @@ footpoint_p = {'rss': 2.5,                # Source-surface radius in solar radii
 
 
 def load_event_intervals(path):
-    """Read UTC Start/Stop pairs from the first Excel sheet or a CSV."""
+    """Read labeled UTC intervals from the first Excel sheet or a CSV."""
     path = Path(path).expanduser()
     read_table = pd.read_csv if path.suffix.lower() == '.csv' else pd.read_excel
-    table = read_table(path, usecols=['Start', 'Stop'])
+    table = read_table(path, usecols=lambda column: column in ('Event', 'Start', 'Stop'),
+                       dtype={'Event': str})
+    dates = table[['Start', 'Stop']].dropna(how='all')
+    event_numbers = table.get('Event')
     intervals = []
-    for index, start, stop in table.dropna(how='all')[['Start', 'Stop']].itertuples(name=None):
+    for index, start, stop in dates.itertuples(name=None):
         start, stop = (pd.to_datetime(value, utc=True, errors='coerce') for value in (start, stop))
         if pd.isna(start) or pd.isna(stop) or start >= stop:
             raise ValueError(f'{path}: spreadsheet row {index + 2} needs valid Start and Stop times with Start before Stop')
-        intervals.append((start, stop))
+        event = event_numbers.loc[index] if event_numbers is not None else None
+        label = str(event).strip() if pd.notna(event) else ''
+        intervals.append((label or str(index + 1), start, stop))
     return intervals
 
 
 def highlight_orbit(ax, ephemeris, intervals, coordinates, linewidth):
-    """Overlay each interval using the plotted ephemeris and its color."""
+    """Label each visible interval and return the skipped and clipped labels."""
     dates = pd.to_datetime(ephemeris['Date'], utc=True)
     origin = dates[0]
     seconds = (dates - origin).total_seconds().to_numpy()
@@ -84,16 +89,29 @@ def highlight_orbit(ax, ephemeris, intervals, coordinates, linewidth):
     y = ephemeris['Pos'][vertical]
     if horizontal == 'theta':
         x = np.unwrap(x)
-    for start, stop in intervals:
-        left = max(0, (start - origin).total_seconds())
-        right = min(seconds[-1], (stop - origin).total_seconds())
+    skipped, clipped = [], []
+    for label, start, stop in intervals:
+        start_seconds = (start - origin).total_seconds()
+        stop_seconds = (stop - origin).total_seconds()
+        left = max(0, start_seconds)
+        right = min(seconds[-1], stop_seconds)
         if left >= right:
+            skipped.append(label)
             continue
+        if left != start_seconds or right != stop_seconds:
+            clipped.append(label)
         segment = np.r_[left, seconds[(seconds > left) & (seconds < right)], right]
         ax.plot(
             np.interp(segment, seconds, x), np.interp(segment, seconds, y),
             color=ephemeris['color'], linewidth=linewidth, zorder=2.5,
         )
+        midpoint = (left + right) / 2
+        ax.annotate(
+            label, (np.interp(midpoint, seconds, x), np.interp(midpoint, seconds, y)),
+            xytext=(0, 5), textcoords='offset points', ha='center', va='bottom',
+            fontsize=8, zorder=4, bbox={'facecolor': 'white', 'edgecolor': 'none', 'pad': 0.5},
+        )
+    return skipped, clipped
 
 
 if __name__ == '__main__':
@@ -126,8 +144,15 @@ if __name__ == '__main__':
         if kind in figures:
             fig = figures[kind]
             if intervals:
-                highlight_orbit(fig.axes[0], ephemerides[kind][EVENT_TARGET], intervals,
-                                coordinates, EVENT_LINEWIDTH)
+                skipped, clipped = highlight_orbit(
+                    fig.axes[0], ephemerides[kind][EVENT_TARGET], intervals, coordinates,
+                    EVENT_LINEWIDTH,
+                )
+                print(f'{kind.capitalize()}: highlighted {len(intervals) - len(skipped)} of {len(intervals)} events.')
+                if skipped:
+                    print(f'Outside plotted ephemeris: {", ".join(skipped)}')
+                if clipped:
+                    print(f'Partly outside plotted ephemeris: {", ".join(clipped)}')
             if SAVE_FIG:
                 fig.savefig(Path(SAVE_PATH) / ('system_ephemeris_' + kind + spice.save_format), dpi=600)
     spice.output_dir = SAVE_PATH if SAVE_FIG else None
