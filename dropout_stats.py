@@ -19,10 +19,10 @@ REVIEW_COLUMNS = ["Event", "Type", "Marker", "Time", "Reason"]
 
 
 def extract_durations(events):
-    """Pair one dropout with the next drop-in within each event window.
+    """Pair each drop-in with the latest preceding dropout in its event window.
 
-    If several dropouts precede the first drop-in, leave the whole set
-    for review. Extra drop-ins cannot close a dropout twice. Events are
+    If several dropouts precede a drop-in, flag the earlier ones for review.
+    Extra drop-ins cannot close a dropout twice. Events are
     processed independently, even when their windows overlap.
     """
     columns = ["Event", "Start", "Stop", "Type", "Dropout", "Dropin"]
@@ -53,13 +53,12 @@ def extract_durations(events):
             elif kinds[0] == "Dropout":
                 pending.extend([time] * len(kinds))
             else:
-                if len(pending) == 1:
-                    duration = (time - pending[0]).total_seconds() / 60
-                    pairs.append((event, event_type, pending[0], time, duration))
-                elif pending:
-                    reason = "multiple dropouts before one drop-in"
-                    review.extend((event, event_type, "Dropout", t, reason) for t in pending)
-                    review.append((event, event_type, "Dropin", time, reason))
+                if pending:
+                    dropout = pending[-1]
+                    duration = (time - dropout).total_seconds() / 60
+                    pairs.append((event, event_type, dropout, time, duration))
+                    reason = "superseded by later dropout before drop-in"
+                    review.extend((event, event_type, "Dropout", t, reason) for t in pending[:-1])
                 extra = len(kinds) - bool(pending)
                 review.extend([(event, event_type, "Dropin", time, "unmatched drop-in")] * extra)
                 pending.clear()
