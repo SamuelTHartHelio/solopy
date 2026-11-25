@@ -21,6 +21,7 @@ if not __package__:
 
 from . import read_solo
 from . import solopy_utils as su
+from .dropout_stats import extract_durations
 from .sis_pha import SIS_PHA
 
 
@@ -64,7 +65,6 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
 
 def main(event_number):
     start, stop = START, STOP
-    markers = []
     if event_number != 0:
         events = pd.read_csv(EVENTS_FILE, dtype=str, keep_default_na=False)
         matches = events.loc[events["Event"].str.strip().eq(str(event_number))]
@@ -73,19 +73,25 @@ def main(event_number):
 
         event = matches.iloc[0]
         start, stop = event["Start"], event["Stop"]
-        for column, color, style in (("Dropout", "dimgray", "-"),("Dropin", "gray", "--")):
-            for value in event[column].split(";"):
-                if value.strip():
-                    markers.append((pd.Timestamp(value.strip()), color, style))
+        pairs, review = extract_durations(matches.assign(Type=matches.get("Type", "")))
 
     fig, axes = plot_sis_mag(
         start, stop, pha_data_dir=PHA_DATA_DIR, mag_data_dir=MAG_DATA_DIR,
         mag_resolution=MAG_RESOLUTION, tof=[3,1], freq="8min",
         mrange=[2,80], exclude_he4=True,
     )
-    for marker, color, style in markers:
+    if event_number != 0:
+        unmatched = review.loc[review["Reason"].ne("outside event window")]
         for ax in axes:
-            ax.axvline(marker, color=color, linestyle=style, linewidth=1)
+            for dropout, dropin in pairs[["Dropout", "Dropin"]].itertuples(index=False, name=None):
+                ax.plot(
+                    [dropout.tz_convert(None), dropin.tz_convert(None)], [0.95, 0.95],
+                    transform=ax.get_xaxis_transform(), color="dimgray", linewidth=5,
+                    solid_capstyle="butt", scalex=False, scaley=False, zorder=4,
+                )
+            for kind, time in unmatched[["Marker", "Time"]].itertuples(index=False, name=None):
+                color, style = ("dimgray", "-") if kind == "Dropout" else ("gray", "--")
+                ax.axvline(time.tz_convert(None), color=color, linestyle=style, linewidth=1)
 
     if OUTPUT_FILE is not None:
         fig.savefig(OUTPUT_FILE, dpi=300)

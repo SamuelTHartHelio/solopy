@@ -1,6 +1,7 @@
 """Measure complete dropout intervals from an events CSV.
 
-Run: python dropout_stats.py /path/to/events.csv --output-dir dropout_results
+In Spyder, edit EVENTS_FILE and OUTPUT_DIR below, then click Run File.
+From a terminal, paths can also be passed as command-line arguments.
 """
 
 import argparse
@@ -9,6 +10,9 @@ from pathlib import Path
 
 import pandas as pd
 
+
+EVENTS_FILE = Path.home() / "Nextcloud" / "Shared" / "NC_Hart" / "solo" / "HCS_Dropouts" / "events.csv"
+OUTPUT_DIR = Path("dropout_results")
 
 PAIR_COLUMNS = ["Event", "Type", "Dropout", "Dropin", "Duration_min"]
 REVIEW_COLUMNS = ["Event", "Type", "Marker", "Time", "Reason"]
@@ -82,22 +86,25 @@ def summarize(pairs):
     return pd.DataFrame(rows)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("events", type=Path)
-    parser.add_argument("--output-dir", type=Path, default=Path("dropout_results"))
-    args = parser.parse_args()
+    parser.add_argument("events", type=Path, nargs="?", default=EVENTS_FILE)
+    parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
+    args = parser.parse_args(argv)
 
-    events = pd.read_csv(args.events, dtype=str)
+    events = pd.read_csv(args.events.expanduser(), dtype=str)
     pairs, review = extract_durations(events)
     summary = summarize(pairs)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    pairs.to_csv(args.output_dir / "dropout_durations.csv", index=False)
-    review.to_csv(args.output_dir / "dropout_review.csv", index=False)
-    summary.to_csv(args.output_dir / "dropout_summary.csv", index=False)
+    output_dir = args.output_dir.expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pairs.to_csv(output_dir / "dropout_durations.csv", index=False)
+    review.to_csv(output_dir / "dropout_review.csv", index=False)
+    summary.to_csv(output_dir / "dropout_summary.csv", index=False)
     print(summary.to_string(index=False, float_format=lambda value: f"{value:.1f}"))
     print(f"Review: {len(review)} markers across {review['Event'].nunique()} events.")
+    print(f"Results saved to {output_dir}")
+    return pairs, review, summary
 
 
 if __name__ == "__main__":
-    main()
+    pairs, review, summary = main()
