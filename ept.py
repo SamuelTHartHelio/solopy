@@ -9,7 +9,10 @@ from solopy.read_solo import load_ept
 
 
 class EPT:
-    "Load EPT data for an inclusive UTC interval at the requested cadence."
+    """Load EPT data for an inclusive UTC interval at the requested cadence.
+
+    Variables on auxiliary time axes are retained as loaded from the CDFs.
+    """
 
     _NATIVE_CADENCE = pd.Timedelta("1min")
     _FLUX_KEY = re.compile(r"(?:Ion|Electron|Electron_Corrected)_(Flux|Uncertainty)_[SAND]")
@@ -30,6 +33,7 @@ class EPT:
     def _load(self, data_dir):
         source = load_ept(self.start, self.stop, data_dir=data_dir)
         epochs = pd.to_datetime(source['EPOCH'])
+        epoch_count = len(epochs)
         selected = np.flatnonzero((epochs >= self.start) & (epochs <= self.stop))
         # Keep one record per epoch and use chronological ordering.
         selected = selected[np.argsort(epochs[selected], kind="stable")]
@@ -44,24 +48,28 @@ class EPT:
                 complete_bins = len(run) // self.factor
                 samples_to_keep = complete_bins * self.factor
                 groups_per_run.append(run[:samples_to_keep].reshape(complete_bins, self.factor))
-            
+
             groups = np.concatenate(groups_per_run)
             first = pd.to_datetime(source["EPOCH"][groups[:, 0]])
             last = pd.to_datetime(source["EPOCH"][groups[:, -1]])
             epochs = first + (last - first) / 2
-            
-        print (source.keys())
+
         data = {"EPOCH": epochs}
         for key, values in source.items():
             if key == "EPOCH":
                 continue
             # SpacePy's concatCDF copies static variables as non-record-varying VarCopy objects.
             static = hasattr(values, "rv") and not values.rv()
-            print (key)
-            print (source[key].shape)
-            print ('')
+            dependency = getattr(values, "attrs", {}).get("DEPEND_0")
+            on_main_epoch = (
+                not key.startswith("EPOCH_")
+                and dependency in (None, "EPOCH")
+                and np.shape(values)[:1] == (epoch_count,)
+            )
             if static:
                 data[key] = values * self.factor if key == "DELTA_EPOCH" and self.factor > 1 else values
+            elif not on_main_epoch:
+                data[key] = values
             elif self.factor == 1:
                 data[key] = values[selected]
             elif key == "DELTA_EPOCH":
