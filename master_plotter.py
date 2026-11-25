@@ -3,9 +3,10 @@
 Edit the settings below and run this file in Spyder or with
 `python master_plotter.py` from the solopy checkout.
 
-Set EVENT to 0 to use START and STOP. Otherwise, select an event from
-events.csv with columns Event, Start, Stop, Dropout, Dropin. Use full UTC
-timestamps and separate multiple times in a marker cell with semicolons.
+Set EVENT to 0 to use START and STOP and show markers from overlapping
+events. Otherwise, select one event from events.csv. Use columns Event,
+Start, Stop, Dropout, Dropin and full UTC timestamps. Separate multiple
+times in a marker cell with semicolons.
 """
 
 import sys
@@ -65,33 +66,43 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
 
 def main(event_number):
     start, stop = START, STOP
-    if event_number != 0:
-        events = pd.read_csv(EVENTS_FILE, dtype=str, keep_default_na=False)
+    events = pd.read_csv(EVENTS_FILE, dtype=str, keep_default_na=False)
+    if event_number == 0:
+        plot_start, plot_stop = pd.to_datetime(start, utc=True), pd.to_datetime(stop, utc=True)
+        event_start = pd.to_datetime(events["Start"], utc=True, format="mixed")
+        event_stop = pd.to_datetime(events["Stop"], utc=True, format="mixed")
+        matches = events.loc[event_start.le(plot_stop) & event_stop.ge(plot_start)]
+    else:
         matches = events.loc[events["Event"].str.strip().eq(str(event_number))]
         if len(matches) != 1:
             raise ValueError(f"Expected exactly one row for event {event_number} in {EVENTS_FILE}")
 
         event = matches.iloc[0]
         start, stop = event["Start"], event["Stop"]
-        pairs, review = extract_durations(matches.assign(Type=matches.get("Type", "")))
+        plot_start, plot_stop = pd.to_datetime(start, utc=True), pd.to_datetime(stop, utc=True)
+
+    pairs, review = extract_durations(matches.assign(Type=matches.get("Type", "")))
+    visible_pairs = pairs.loc[pairs["Dropout"].lt(plot_stop) & pairs["Dropin"].gt(plot_start)]
+    unmatched = review.loc[
+        review["Reason"].ne("outside event window") & review["Time"].between(plot_start, plot_stop)
+    ]
 
     fig, axes = plot_sis_mag(
         start, stop, pha_data_dir=PHA_DATA_DIR, mag_data_dir=MAG_DATA_DIR,
         mag_resolution=MAG_RESOLUTION, tof=[3,1], freq="8min",
         mrange=[2,80], exclude_he4=True,
     )
-    if event_number != 0:
-        unmatched = review.loc[review["Reason"].ne("outside event window")]
-        for ax in axes:
-            for dropout, dropin in pairs[["Dropout", "Dropin"]].itertuples(index=False, name=None):
-                ax.plot(
-                    [dropout.tz_convert(None), dropin.tz_convert(None)], [0.95, 0.95],
-                    transform=ax.get_xaxis_transform(), color="dimgray", linewidth=5,
-                    solid_capstyle="butt", scalex=False, scaley=False, zorder=4,
-                )
-            for kind, time in unmatched[["Marker", "Time"]].itertuples(index=False, name=None):
-                color, style = ("dimgray", "-") if kind == "Dropout" else ("gray", "--")
-                ax.axvline(time.tz_convert(None), color=color, linestyle=style, linewidth=1)
+    for ax in axes:
+        for dropout, dropin in visible_pairs[["Dropout", "Dropin"]].itertuples(index=False, name=None):
+            endpoints = [max(dropout, plot_start), min(dropin, plot_stop)]
+            ax.plot(
+                [time.tz_convert(None) for time in endpoints], [0.95, 0.95],
+                transform=ax.get_xaxis_transform(), color="dimgray", linewidth=5,
+                solid_capstyle="butt", scalex=False, scaley=False, zorder=4,
+            )
+        for kind, time in unmatched[["Marker", "Time"]].itertuples(index=False, name=None):
+            color, style = ("dimgray", "-") if kind == "Dropout" else ("gray", "--")
+            ax.axvline(time.tz_convert(None), color=color, linestyle=style, linewidth=1)
 
     if OUTPUT_FILE is not None:
         fig.savefig(OUTPUT_FILE, dpi=300)
