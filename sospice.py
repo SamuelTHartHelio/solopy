@@ -61,13 +61,14 @@ footpoint_p = {'rss': 2.5,                # Source-surface radius in solar radii
 
 
 def load_event_intervals(path):
-    """Read labeled UTC intervals from the first Excel sheet or a CSV."""
+    """Read labeled UTC intervals and optional event types from Excel or CSV."""
     path = Path(path).expanduser()
     read_table = pd.read_csv if path.suffix.lower() == '.csv' else pd.read_excel
-    table = read_table(path, usecols=lambda column: column in ('Event', 'Start', 'Stop'),
+    table = read_table(path, usecols=lambda column: column in ('Event', 'Start', 'Stop', 'Type'),
                        dtype={'Event': str})
     dates = table[['Start', 'Stop']].dropna(how='all')
     event_numbers = table.get('Event')
+    event_types = table.get('Type')
     intervals = []
     for index, start, stop in dates.itertuples(name=None):
         start, stop = (pd.to_datetime(value, utc=True, errors='coerce') for value in (start, stop))
@@ -75,7 +76,9 @@ def load_event_intervals(path):
             raise ValueError(f'{path}: spreadsheet row {index + 2} needs valid Start and Stop times with Start before Stop')
         event = event_numbers.loc[index] if event_numbers is not None else None
         label = str(event).strip() if pd.notna(event) else ''
-        intervals.append((label or str(index + 1), start, stop))
+        event_type = event_types.loc[index] if event_types is not None else None
+        event_type = str(event_type).strip().casefold() if pd.notna(event_type) else ''
+        intervals.append((label or str(index + 1), start, stop, event_type))
     return intervals
 
 
@@ -90,7 +93,8 @@ def highlight_orbit(ax, ephemeris, intervals, coordinates, linewidth):
     if horizontal == 'theta':
         x = np.unwrap(x)
     skipped, clipped = [], []
-    for label, start, stop in intervals:
+    colors = {'impulsive': 'lightblue', 'gradual': 'navy'}
+    for label, start, stop, event_type in intervals:
         start_seconds = (start - origin).total_seconds()
         stop_seconds = (stop - origin).total_seconds()
         left = max(0, start_seconds)
@@ -103,7 +107,7 @@ def highlight_orbit(ax, ephemeris, intervals, coordinates, linewidth):
         segment = np.r_[left, seconds[(seconds > left) & (seconds < right)], right]
         ax.plot(
             np.interp(segment, seconds, x), np.interp(segment, seconds, y),
-            color='lightblue', linewidth=linewidth, zorder=2.5,
+            color=colors.get(event_type, 'lightblue'), linewidth=linewidth, zorder=2.5,
         )
         midpoint = (left + right) / 2
         ax.annotate(
