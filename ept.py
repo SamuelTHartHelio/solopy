@@ -115,17 +115,19 @@ class EPT:
         fig, axes = plt.subplots(len(fluxes), 1, sharex=True, squeeze=False, 
                                  figsize=(8, 3 if grouped else 7), layout="constrained")
         axes = axes[:,0]
-        ax = axes[0]
         norm = LogNorm(vmin=1e-1, vmax=1e4)
         for ax, flux, label in zip(axes, fluxes, labels):
-            mesh = ax.pcolormesh(epochs, energy, (fluxes*energy**2).T, cmap="jet", norm=norm, rasterized=True)
+            mesh = ax.pcolormesh(
+                epochs, energy, (flux * energy**2).T, shading="nearest",
+                cmap="jet", norm=norm, rasterized=True,
+            )
             ax.set_yscale("log")
             ax.set_ylabel("Energy (MeV)")
-            ax.set_title(telescopes, loc="left")
+            ax.set_title(label, loc="left")
 
         curate_axes(axes, self.start, self.stop, year=self.start.year)
         fig.suptitle(f"EPT {particle.lower()} spectrogram")
-        fig.colorbar(mesh, ax=list(axes), label="Differential flux")
+        fig.colorbar(mesh, ax=list(axes), label=r"Differential flux $\times E^2$")
         return fig, axes
 
 
