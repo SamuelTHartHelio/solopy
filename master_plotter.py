@@ -25,7 +25,7 @@ from .dropout_stats import extract_durations
 from .sis_pha import SIS_PHA
 
 
-EVENT = 36
+EVENT = 33
 EVENTS_FILE = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/events.csv')
 
 START = "2023-12-14 12:00"

@@ -20,7 +20,7 @@ ORBIT_PATH = KERNEL_PATH.parent  # Contains ace_spice/ and wind_spice/ orbit CDF
 START = '2023-01-10T00:00:00'
 STOP = '2023-12-20T00:00:00'     # None for a single time
 CADENCE = '1h'
-EVENTS_FILE = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/impulsive_events.csv')             # Set to Path('events.xlsx') or Path('events.csv')
+EVENTS_FILE = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/events.csv')             # Set to Path('events.xlsx') or Path('events.csv')
 EVENT_TARGET = 'Solar Orbiter'
 EVENT_LINEWIDTH = 3
 
