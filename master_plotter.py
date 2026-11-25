@@ -26,15 +26,15 @@ from .dropout_stats import extract_durations
 from .sis_pha import SIS_PHA
 
 
-EVENT = 33
+EVENT = 36
 EVENTS_FILE = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/events.csv')
 
-START = "2023-12-14 12:00"
-STOP = "2023-12-18 12:00"
+START = "2023-10-17 12:00"
+STOP = "2023-10-19 06:00"
 PHA_DATA_DIR = Path('/Users/shart/Documents/Work/SOSIS/Data/PHA/txt/')
 MAG_DATA_DIR = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/Data/')
 MAG_RESOLUTION = "1min"
-OUTPUT_FILE = None  # Set to a path such as "sis_mag.png" to save the figure.
+OUTPUT_FILE = EVENTS_FILE.parent / 'case1.png'  # Set to a path such as "sis_mag.png" to save the figure.
 
 
 def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
@@ -47,7 +47,7 @@ def plot_sis_mag(start, stop, *, pha_data_dir, mag_data_dir,
     pha = SIS_PHA(start, stop, data_dir=Path(pha_data_dir).expanduser())
     mag = read_solo.load_mag(start, stop, mag_resolution, data_dir=Path(mag_data_dir).expanduser())
 
-    fig = plt.figure(figsize=(9, 6))
+    fig = plt.figure(figsize=(8, 6))
     axs = fig.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": [2, 2, 1]})
 
     pha.plot_oos_AB(axs=axs[:2], **oos_options)

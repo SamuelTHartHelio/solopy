@@ -90,39 +90,6 @@ def load_ept(start, stop, *, data_dir=None):
         cdfs = [stack.enter_context(pycdf.CDF(f)) for f in files]
         return pycdf.concatCDF(cdfs)
 
-def rebin_ept(ept,tfactor=1,efactor=1):
-    sec = {'1min':60}.get('1min')
-    species = ['Ion','Electron','Electron_Corrected']
-    names = ['Flux','Uncertainty']
-    scope = ['S','A','N','D']
-    if tfactor != 1:
-        nbins = int(ept['EPOCH'].size/tfactor)
-        trim = int(nbins*tfactor)
-        ept['EPOCH'] = ept['EPOCH'][::tfactor]+timedelta(seconds=int(sec*tfactor/2))
-        ept['DELTA_EPOCH'] = ept['DELTA_EPOCH'][::tfactor]*tfactor
-        for i, s in enumerate(species):
-            for j, n in enumerate(names):
-                for k, p in enumerate(scope):
-                    if i == 0: prefix = 'Ion'
-                    if i > 0: prefix = 'Electron'
-                    rebin = ept['%s_%s_%s'%(s,n,p)][:trim].reshape(nbins,tfactor,ept['%s_Energy'%prefix].size)
-                    rebin[rebin < 0] = 0
-                    if n == 'Uncertainty': ept['%s_%s_%s'%(s,n,p)] = np.sqrt((rebin**2).sum(axis=1))/tfactor
-                    if n == 'Flux': ept['%s_%s_%s'%(s,n,p)] = rebin.mean(axis=1)
-    if efactor != 1:
-        for i, s in enumerate(species):
-            if i == 0: prefix = 'Ion'
-            if i > 0: prefix = 'Electron'
-            nbins = int(ept['%s_Energy'%prefix].size/efactor)
-            trim = int(nbins*efactor)
-            if i <= 1: ept['%s_Energy'%prefix] = np.prod(ept['%s_Energy'%prefix][:trim].reshape(nbins,efactor),axis=1)**(1/efactor)
-            for j, n in enumerate(names):
-                for k, p in enumerate(scope):
-                    rebin = ept['%s_%s_%s'%(s,n,p)][:,:trim].reshape(ept['EPOCH'].size,nbins,efactor)
-                    rebin[rebin < 0] = 0
-                    if n == 'Uncertainty': ept['%s_%s_%s'%(s,n,p)] = np.sqrt((rebin**2).sum(axis=2))/efactor
-                    if n == 'Flux': ept['%s_%s_%s'%(s,n,p)] = rebin.mean(axis=2)
-    return ept
 
 #-------EAS Strahl--------#
 def find_eas(start, stop):

@@ -30,10 +30,9 @@ FRAME = 'HEE'           # 'ECLIPJ2000', 'IAU_SUN', 'GSE', or 'HEE'
 SATELLITES = ['Earth','Solar Orbiter']
 # ACE/Wind need FRAME='GSE', OBSERVER='Earth', and cospice_utils.py.
 
-SAVE_FIG = 0
-SAVE_EXT = '.eps'
-SAVE_PATH = str(Path.home()/'Library'/'CloudStorage'/'OneDrive-SWRI'/'Documents'/
-                'Work'/'Proposals'/'2026'/'NIAC')
+SAVE_FIG = 1
+SAVE_EXT = '.png'
+SAVE_PATH = Path('/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/')
 
 #------------------------------OUTPUT SELECTIONS------------------------------#
 CARTESIAN = 0
@@ -145,7 +144,7 @@ if __name__ == '__main__':
             SATELLITES, START, stop=STOP, td=CADENCE)
     figures = spice.figures
     fig = figures["polar"]  # Use "polar" for the polar plot.
-    fig.set_size_inches(6.5,6.5)   # Width and height in inches
+    fig.set_size_inches(5,5)   # Width and height in inches
     fig.tight_layout()
     fig.canvas.draw_idle()
 
