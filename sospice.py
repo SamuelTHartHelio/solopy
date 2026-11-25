@@ -36,8 +36,8 @@ SAVE_PATH = str(Path.home()/'Library'/'CloudStorage'/'OneDrive-SWRI'/'Documents'
                 'Work'/'Proposals'/'2026'/'NIAC')
 
 #------------------------------OUTPUT SELECTIONS------------------------------#
-CARTESIAN = 1
-POLAR = 0
+CARTESIAN = 0
+POLAR = 1
 
 FOOTPOINTS = 0
 EPHEMERIS = 0
@@ -103,13 +103,13 @@ def highlight_orbit(ax, ephemeris, intervals, coordinates, linewidth):
         segment = np.r_[left, seconds[(seconds > left) & (seconds < right)], right]
         ax.plot(
             np.interp(segment, seconds, x), np.interp(segment, seconds, y),
-            color=ephemeris['color'], linewidth=linewidth, zorder=2.5,
+            color='lightblue', linewidth=linewidth, zorder=2.5,
         )
         midpoint = (left + right) / 2
         ax.annotate(
             label, (np.interp(midpoint, seconds, x), np.interp(midpoint, seconds, y)),
             xytext=(0, 5), textcoords='offset points', ha='center', va='bottom',
-            fontsize=8, zorder=4, bbox={'facecolor': 'white', 'edgecolor': 'none', 'pad': 0.5},
+            fontsize=8, zorder=4, bbox={'facecolor': 'white', 'edgecolor': 'none', 'pad': 0},
         )
     return skipped, clipped
 
@@ -140,6 +140,11 @@ if __name__ == '__main__':
         ephemerides['system'] = spice.system_ephemeris(
             SATELLITES, START, stop=STOP, td=CADENCE)
     figures = spice.figures
+    fig = figures["polar"]  # Use "polar" for the polar plot.
+    fig.set_size_inches(6.5,6.5)   # Width and height in inches
+    fig.tight_layout()
+    fig.canvas.draw_idle()
+
     for kind, coordinates in (('cartesian', tuple(PLANE.lower())), ('polar', ('theta', 'r'))):
         if kind in figures:
             fig = figures[kind]
@@ -157,7 +162,7 @@ if __name__ == '__main__':
                 fig.savefig(Path(SAVE_PATH) / ('system_ephemeris_' + kind + spice.save_format), dpi=600)
     spice.output_dir = SAVE_PATH if SAVE_FIG else None
 
-    
+
     if figures:
         plt.show()
     # Kernels stay loaded so you can use the spice object in Spyder's console.
