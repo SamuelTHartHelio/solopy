@@ -64,11 +64,7 @@ class EPT:
             # SpacePy's concatCDF copies static variables as non-record-varying VarCopy objects.
             static = hasattr(values, "rv") and not values.rv()
             dependency = getattr(values, "attrs", {}).get("DEPEND_0")
-            on_main_epoch = (
-                not key.startswith("EPOCH_")
-                and dependency in (None, "EPOCH")
-                and np.shape(values)[:1] == (epoch_count,)
-            )
+            on_main_epoch = (not key.startswith("EPOCH_") and dependency in (None, "EPOCH") and np.shape(values)[:1] == (epoch_count,))
             if static:
                 data[key] = values * self.factor if key == "DELTA_EPOCH" and self.factor > 1 else values
             elif not on_main_epoch:
