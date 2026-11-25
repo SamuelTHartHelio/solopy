@@ -7,6 +7,7 @@ Created on Tue May 27 08:17:48 2025
 """
 
 import re
+from contextlib import ExitStack
 import os
 import sys
 import glob
@@ -73,18 +74,21 @@ def load_pas(start, stop):
     return pas
 
 #-------EPT Public--------#
-def find_ept(start,stop):
-    all_files = np.sort(glob.glob(L2_path+'ept_1min/*'))
-    dates = pd.date_range(start, stop)
+def find_ept(start, stop, *, data_dir=None):
+    root = L2_path if data_dir is None else data_dir
+    all_files = sorted(glob.glob(os.path.join(root, 'ept_1min', '*.cdf')))
+    dates = pd.date_range(pd.Timestamp(start).normalize(), pd.Timestamp(stop).normalize())
     suffixes = ['_%d%02d%02d_' % (d.year, d.month, d.day) for d in dates]
     to_use = [f for f in all_files if any(s in f for s in suffixes)]
     return to_use
 
-def load_ept(start, stop):
-    files = find_ept(start,stop)
-    cdfs = [pycdf.CDF(f) for f in files]
-    ept = pycdf.concatCDF(cdfs)
-    return ept
+def load_ept(start, stop, *, data_dir=None):
+    files = find_ept(start, stop, data_dir=data_dir)
+    if not files:
+        raise FileNotFoundError("No ept_1min CDFs found for the selected dates")
+    with ExitStack() as stack:
+        cdfs = [stack.enter_context(pycdf.CDF(f)) for f in files]
+        return pycdf.concatCDF(cdfs)
 
 def rebin_ept(ept,tfactor=1,efactor=1):
     sec = {'1min':60}.get('1min')
