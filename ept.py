@@ -97,33 +97,14 @@ class EPT:
         return np.divide(total, count, out=np.full(total.shape, np.nan), where=count > 0)
 
     def summary_plot(self, species, grouped=0):
-        """Plot differential flux by energy and return the figure and axes.
-
-        With grouped=0, draw one panel per telescope. With grouped=1, plot
-        the mean of the available telescope fluxes in each time-energy bin.
-        """
-        aliases = {
-            "ion": "Ion", "ions": "Ion",
-            "electron": "Electron", "elec": "Electron", "electrons": "Electron",
-        }
+        aliases = {"ion": "Ion", "ions": "Ion", "electron": "Electron", "elec": "Electron", "electrons": "Electron"}
         particle = aliases.get(species.strip().lower())
         if particle is None:
             raise ValueError("species must be ion, ions, electron, elec, or electrons")
-        if grouped not in (0, 1):
-            raise ValueError("grouped must be 0 (separate) or 1 (together)")
 
         epochs = self.dat["EPOCH"]
-        if len(epochs) == 0:
-            raise ValueError("No EPT samples at the selected cadence")
         energy = np.asarray(self.dat[f"{particle}_Energy"]).reshape(-1)
-        log_energy = np.log(energy)
-        if energy.size == 1:
-            energy_edges = energy[0] * np.sqrt([0.5, 2])
-        else:
-            centers = (log_energy[:-1] + log_energy[1:]) / 2
-            energy_edges = np.exp(np.r_[2 * log_energy[0] - centers[0],
-                                       centers, 2 * log_energy[-1] - centers[-1]])
-
+        
         telescopes = {"S": "Sun", "A": "Anti-Sun", "N": "North", "D": "South"}
         fluxes = [self.dat[f"{particle}_Flux_{scope}"] for scope in telescopes]
         labels = list(telescopes.values())
@@ -131,26 +112,16 @@ class EPT:
             fluxes = [self._aggregate(np.stack(fluxes, axis=1))]
             labels = ["Telescope mean"]
 
-        fig, axes = plt.subplots(
-            len(fluxes), 1, sharex=True, squeeze=False,
-            figsize=(8, 3 if grouped else 7), layout="constrained",
-        )
-        axes = axes[:, 0]
-        norm = LogNorm(vmin=1e-4, vmax=1e3)
-        breaks = np.flatnonzero(epochs[1:] - epochs[:-1] != self.cadence) + 1
-        runs = np.split(np.arange(len(epochs)), breaks)
-        half_bin = self.cadence / 2
+        fig, axes = plt.subplots(len(fluxes), 1, sharex=True, squeeze=False, 
+                                 figsize=(8, 3 if grouped else 7), layout="constrained")
+        axes = axes[:,0]
+        ax = axes[0]
+        norm = LogNorm(vmin=1e-1, vmax=1e4)
         for ax, flux, label in zip(axes, fluxes, labels):
-            for run in runs:
-                times = epochs[run]
-                time_edges = (times - half_bin).append(times[-1:] + half_bin)
-                mesh = ax.pcolormesh(
-                    time_edges, energy_edges, flux[run].T, cmap="jet",
-                    norm=norm, shading="flat", rasterized=True,
-                )
+            mesh = ax.pcolormesh(epochs, energy, (fluxes*energy**2).T, cmap="jet", norm=norm, rasterized=True)
             ax.set_yscale("log")
             ax.set_ylabel("Energy (MeV)")
-            ax.set_title(label, loc="left")
+            ax.set_title(telescopes, loc="left")
 
         curate_axes(axes, self.start, self.stop, year=self.start.year)
         fig.suptitle(f"EPT {particle.lower()} spectrogram")
@@ -162,3 +133,4 @@ if __name__ == '__main__':
     start, stop = pd.to_datetime('2025-05-16T02:00:00'), pd.to_datetime('2025-05-16T16:00:00')
     output_dir = '/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/'
     ept = EPT(start, stop, cadence='1min', output_dir=output_dir)
+    ept.summary_plot('ion',grouped=1)
