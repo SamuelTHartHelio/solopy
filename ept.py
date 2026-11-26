@@ -1,6 +1,8 @@
 """Electron Proton Telescope data from the public Solar Orbiter 1-minute CDFs."""
 
 import re
+import sys
+from pathlib import Path
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -8,6 +10,10 @@ import numpy as np
 import pandas as pd
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import LogNorm
+
+if not __package__:
+    # Spyder's Run File needs the directory containing the solopy checkout.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from solopy.read_solo import load_ept, load_mag
 from solopy.solopy_utils import curate_axes
