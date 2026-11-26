@@ -97,7 +97,7 @@ class EPT:
         return np.divide(total, count, out=np.full(total.shape, np.nan), where=count > 0)
 
     def summary_plot(self, species, grouped=0):
-        aliases = {"ion": "Ion", "ions": "Ion", "electron": "Electron", "elec": "Electron", "electrons": "Electron"}
+        aliases = {"ion": "Ion", "electron": "Electron", "elec": "Electron"}
         particle = aliases.get(species.strip().lower())
         if particle is None:
             raise ValueError("species must be ion, ions, electron, elec, or electrons")
@@ -110,29 +110,28 @@ class EPT:
         labels = list(telescopes.values())
         if grouped == 1:
             fluxes = [self._aggregate(np.stack(fluxes, axis=1))]
-            labels = ["Telescope mean"]
+            labels = [f"EPT {particle.capitalize()} Telescope mean"]
 
         fig, axes = plt.subplots(len(fluxes), 1, sharex=True, squeeze=False, 
-                                 figsize=(8, 3 if grouped else 7), layout="constrained")
+                                 figsize=(9, 2.5 if grouped else 7), layout="constrained")
         axes = axes[:,0]
+        cmap = plt.cm.turbo.copy()
+        cmap.set_bad((0,0,0))
         norm = LogNorm(vmin=1e-1, vmax=1e4)
         for ax, flux, label in zip(axes, fluxes, labels):
-            mesh = ax.pcolormesh(
-                epochs, energy, (flux * energy**2).T, shading="nearest",
-                cmap="jet", norm=norm, rasterized=True,
-            )
+            mesh = ax.pcolormesh(epochs, energy, (flux * energy**2).T, shading="nearest", 
+                                 cmap=cmap, norm=norm, rasterized=True,)
             ax.set_yscale("log")
             ax.set_ylabel("Energy (MeV)")
             ax.set_title(label, loc="left")
 
         curate_axes(axes, self.start, self.stop, year=self.start.year)
-        fig.suptitle(f"EPT {particle.lower()} spectrogram")
         fig.colorbar(mesh, ax=list(axes), label=r"Differential flux $\times E^2$")
         return fig, axes
 
 
 if __name__ == '__main__':
-    start, stop = pd.to_datetime('2025-05-16T02:00:00'), pd.to_datetime('2025-05-16T16:00:00')
+    start, stop = pd.to_datetime('2025-05-16T00:00:00'), pd.to_datetime('2025-05-17T23:59:00')
     output_dir = '/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/'
     ept = EPT(start, stop, cadence='1min', output_dir=output_dir)
-    ept.summary_plot('ion',grouped=1)
+    ept.summary_plot(species='ion',grouped=1)
