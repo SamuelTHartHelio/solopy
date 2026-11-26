@@ -21,12 +21,9 @@ class EPT:
 
     _NATIVE_CADENCE = pd.Timedelta("1min")
     _FLUX_KEY = re.compile(r"(?:Ion|Electron|Electron_Corrected)_(Flux|Uncertainty)_[SAND]")
-    _ION_LOOK_RTN = np.array([
-        [0.8191, 0.5735, 0],
-        [-0.8191, -0.5735, 0],
-        [-0.321, 0.458, 0.829],
-        [0.321, -0.458, -0.829],
-    ])
+    _ION_LOOK_RTN = np.array([[0.8191, 0.5735, 0], [-0.8191, -0.5735, 0], 
+                              [-0.321, 0.458, 0.829], [0.321, -0.458, -0.829]])
+    _FOV = 30
 
     def __init__(self, start, stop, cadence, output_dir=None, *, data_dir=None):
         self.start, self.stop = pd.to_datetime(start), pd.to_datetime(stop)
@@ -139,23 +136,15 @@ class EPT:
         fig.colorbar(mesh, ax=list(axes), label=r"Differential flux $\times E^2$")
         return fig, axes
 
-    def plot_ion_pad(self, ax=None, *, energy=0.67, fov=30, vmin=2, vmax=8,
-                     mag_data_dir=None, cg_corr=False, v_sw=400, gamma=1.5):
-        """Plot ion flux at the nearest native energy channel by pitch angle.
-
-        MAG pitch angles are averaged over each populated EPT time bin.
-        The optional Compton–Getting correction assumes radial solar wind.
-        Returns the figure and axis.
-        """
+    def plot_ion_pad(self, ax=None, *, energy=0.67, cg_corr=False, v_sw=400, gamma=1.5):
+        "Plot ion flux at the nearest native energy channel by pitch angle."
+        
         epochs = pd.DatetimeIndex(self.dat["EPOCH"])
-        if epochs.empty:
-            raise ValueError("No EPT samples at the selected cadence")
+
         energies = np.asarray(self.dat["Ion_Energy"]).reshape(-1)
         channel = np.abs(energies - energy).argmin()
         channel_energy = energies[channel]
-        flux = np.column_stack([
-            self.dat[f"Ion_Flux_{scope}"][:, channel] for scope in "SAND"
-        ])
+        flux = np.column_stack([self.dat[f"Ion_Flux_{scope}"][:, channel] for scope in "SAND"])
         looks = self._ION_LOOK_RTN
         looks = looks / np.linalg.norm(looks, axis=1, keepdims=True)
         if cg_corr:
@@ -168,18 +157,15 @@ class EPT:
 
         half_bin = self.cadence / 2
         left_edges, right_edges = epochs - half_bin, epochs + half_bin
-        mag = load_mag(
-            left_edges[0], right_edges[-1], "1min",
-            data_dir=self.data_dir if mag_data_dir is None else mag_data_dir,
-        )
+        mag = load_mag(left_edges[0], right_edges[-1], "1min", data_dir=self.data_dir )
         mag_times = pd.DatetimeIndex(mag["EPOCH"])
         field = np.asarray(mag["B_RTN"])[:, :3]
         magnitude = np.linalg.norm(field, axis=1)
+        
         valid = mag_times.notna() & np.isfinite(magnitude) & (magnitude > 0)
         times = mag_times[valid]
-        order = times.argsort()
-        times = times[order]
-        directions = (field[valid] / magnitude[valid, None])[order]
+
+        directions = (field[valid] / magnitude[valid, None])
         angles = np.degrees(np.arccos(np.clip(directions @ looks.T, -1, 1)))
         first = times.searchsorted(left_edges, side="left")
         stop = times.searchsorted(right_edges, side="left")
@@ -193,18 +179,16 @@ class EPT:
             for angle, value in zip(pitch_angles, flux[index]):
                 if not np.isfinite(value) or value <= 0:
                     continue
-                lower = max(0, angle - fov / 2)
-                upper = min(180, angle + fov / 2)
+                lower = max(0, angle - self._FOV / 2)
+                upper = min(180, angle + self._FOV / 2)
                 vertices.append([(left, lower), (right, lower), (right, upper), (left, upper)])
                 colors.append(value)
 
         standalone = ax is None
         if standalone:
             _, ax = plt.subplots(figsize=(8, 3))
-        mesh = PolyCollection(
-            vertices, array=np.asarray(colors), cmap="jet",
-            norm=LogNorm(vmin=vmin, vmax=vmax), rasterized=True,
-        )
+        mesh = PolyCollection(vertices, array=np.asarray(colors), cmap="jet",
+                              norm=LogNorm(vmin=1e-1, vmax=1e4), rasterized=True)
         ax.add_collection(mesh)
         ax.xaxis_date()
         ax.set_ylim(0, 180)
@@ -220,7 +204,8 @@ class EPT:
 
 
 if __name__ == '__main__':
-    start, stop = pd.to_datetime('2025-05-16T00:00:00'), pd.to_datetime('2025-05-17T23:59:00')
+    start, stop = pd.to_datetime('2022-11-14T00:00:00'), pd.to_datetime('2022-11-15T23:59:00')
     output_dir = '/Users/shart/Nextcloud/Shared/NC_Hart/solo/HCS_Dropouts/'
-    ept = EPT(start, stop, cadence='1min', output_dir=output_dir)
-    ept.summary_plot(species='ion',grouped=1)
+    ept = EPT(start, stop, cadence='10min', output_dir=output_dir)
+    ept.summary_plot(species='ion',grouped=0)
+    ept.plot_ion_pad(energy=0.4)
