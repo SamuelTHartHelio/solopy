@@ -2,12 +2,14 @@
 
 import re
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.collections import PolyCollection
 from matplotlib.colors import LogNorm
 
-from solopy.read_solo import load_ept
+from solopy.read_solo import load_ept, load_mag
 from solopy.solopy_utils import curate_axes
 
 
@@ -19,6 +21,12 @@ class EPT:
 
     _NATIVE_CADENCE = pd.Timedelta("1min")
     _FLUX_KEY = re.compile(r"(?:Ion|Electron|Electron_Corrected)_(Flux|Uncertainty)_[SAND]")
+    _ION_LOOK_RTN = np.array([
+        [0.8191, 0.5735, 0],
+        [-0.8191, -0.5735, 0],
+        [-0.321, 0.458, 0.829],
+        [0.321, -0.458, -0.829],
+    ])
 
     def __init__(self, start, stop, cadence, output_dir=None, *, data_dir=None):
         self.start, self.stop = pd.to_datetime(start), pd.to_datetime(stop)
@@ -26,6 +34,8 @@ class EPT:
         self.cadence = pd.to_timedelta(cadence)
         if data_dir == None:
             self.data_dir = '/Users/shart/Nextcloud/Shared/NC_Hart/solo/Data/'
+        else:
+            self.data_dir = data_dir
         if self.cadence < self._NATIVE_CADENCE or self.cadence % self._NATIVE_CADENCE != pd.Timedelta(0):
             raise ValueError("EPT cadence must be a positive integer multiple of 1min")
         self.rate = "1min"
@@ -128,6 +138,85 @@ class EPT:
         curate_axes(axes, self.start, self.stop, year=self.start.year)
         fig.colorbar(mesh, ax=list(axes), label=r"Differential flux $\times E^2$")
         return fig, axes
+
+    def plot_ion_pad(self, ax=None, *, energy=0.67, fov=30, vmin=2, vmax=8,
+                     mag_data_dir=None, cg_corr=False, v_sw=400, gamma=1.5):
+        """Plot ion flux at the nearest native energy channel by pitch angle.
+
+        MAG pitch angles are averaged over each populated EPT time bin.
+        The optional Compton–Getting correction assumes radial solar wind.
+        Returns the figure and axis.
+        """
+        epochs = pd.DatetimeIndex(self.dat["EPOCH"])
+        if epochs.empty:
+            raise ValueError("No EPT samples at the selected cadence")
+        energies = np.asarray(self.dat["Ion_Energy"]).reshape(-1)
+        channel = np.abs(energies - energy).argmin()
+        channel_energy = energies[channel]
+        flux = np.column_stack([
+            self.dat[f"Ion_Flux_{scope}"][:, channel] for scope in "SAND"
+        ])
+        looks = self._ION_LOOK_RTN
+        looks = looks / np.linalg.norm(looks, axis=1, keepdims=True)
+        if cg_corr:
+            # With radial wind, the tangential sign does not affect the speed ratio.
+            speed = np.sqrt(2 * 1.602e-13 * channel_energy / 1.67e-27) / 1e3
+            shifted_velocity = speed * looks - [v_sw, 0, 0]
+            energy_ratio = np.square(np.linalg.norm(shifted_velocity, axis=1) / speed)
+            exponent = 1 if gamma == -1 else 1 + gamma
+            flux = flux * energy_ratio**exponent
+
+        half_bin = self.cadence / 2
+        left_edges, right_edges = epochs - half_bin, epochs + half_bin
+        mag = load_mag(
+            left_edges[0], right_edges[-1], "1min",
+            data_dir=self.data_dir if mag_data_dir is None else mag_data_dir,
+        )
+        mag_times = pd.DatetimeIndex(mag["EPOCH"])
+        field = np.asarray(mag["B_RTN"])[:, :3]
+        magnitude = np.linalg.norm(field, axis=1)
+        valid = mag_times.notna() & np.isfinite(magnitude) & (magnitude > 0)
+        times = mag_times[valid]
+        order = times.argsort()
+        times = times[order]
+        directions = (field[valid] / magnitude[valid, None])[order]
+        angles = np.degrees(np.arccos(np.clip(directions @ looks.T, -1, 1)))
+        first = times.searchsorted(left_edges, side="left")
+        stop = times.searchsorted(right_edges, side="left")
+
+        vertices, colors = [], []
+        for index, (start_mag, stop_mag) in enumerate(zip(first, stop)):
+            if start_mag == stop_mag:
+                continue
+            pitch_angles = angles[start_mag:stop_mag].mean(axis=0)
+            left, right = mdates.date2num([left_edges[index], right_edges[index]])
+            for angle, value in zip(pitch_angles, flux[index]):
+                if not np.isfinite(value) or value <= 0:
+                    continue
+                lower = max(0, angle - fov / 2)
+                upper = min(180, angle + fov / 2)
+                vertices.append([(left, lower), (right, lower), (right, upper), (left, upper)])
+                colors.append(value)
+
+        standalone = ax is None
+        if standalone:
+            _, ax = plt.subplots(figsize=(8, 3))
+        mesh = PolyCollection(
+            vertices, array=np.asarray(colors), cmap="jet",
+            norm=LogNorm(vmin=vmin, vmax=vmax), rasterized=True,
+        )
+        ax.add_collection(mesh)
+        ax.xaxis_date()
+        ax.set_ylim(0, 180)
+        ax.set_yticks([0, 45, 90, 135, 180])
+        ax.set_ylabel(f"Ion pitch angle (°)\n{channel_energy:.2f} MeV")
+        colorbar_ax = ax.inset_axes([1.02, 0.05, 0.025, 0.9])
+        label = "CG-corrected differential flux" if cg_corr else "Differential flux"
+        ax.figure.colorbar(mesh, cax=colorbar_ax, label=label)
+        if standalone:
+            curate_axes([ax], self.start, self.stop, year=self.start.year)
+            ax.figure.subplots_adjust(right=0.82, bottom=0.22)
+        return ax.figure, ax
 
 
 if __name__ == '__main__':
